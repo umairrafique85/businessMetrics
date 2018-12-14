@@ -15,7 +15,7 @@ getRFM_metrics <- function(customerId, invoiceDate, dateBaseline = Sys.Date(),
               frequency = n_distinct(!!invoiceNumber), monetary=sum(!!invoiceAmount))
 }
 
-# function to make bins of metrics
+# function to make bins of metrics. Input will be dataframe returned from getRFM_metrics()
 getRFM_quintiles <- function(dataframe_metrics){
   df_binnedMetrics <- data.frame(customerId = dataframe_metrics$customerId,
              R = cut2(dataframe_metrics$recency, g = 5), 
@@ -27,11 +27,15 @@ getRFM_quintiles <- function(dataframe_metrics){
   return(df_binnedMetrics)
 }
 
-# present scores 5, 5, 5
-df_RFM_scores <- data.frame(customerId = df_RFM_segments$customerId,
-                            R_score = as.numeric(df_RFM_grading$R), 
-                            F_score = as.numeric(df_RFM_grading$F), 
-                            M_score = as.numeric(df_RFM_grading$M))
+# function to present scores as 5, 5, 5. 1 being lowest and 5 being highest.
+# input will be dataframe returned from getRFM_quintiles()
+getRFM_scores <- function(dataframe_binnedMetrics){
+  data.frame(customerId = dataframe_binnedMetrics$customerId,
+             R_score = as.numeric(dataframe_binnedMetrics$R),
+             F_score = as.numeric(dataframe_binnedMetrics$F),
+             M_score = as.numeric(dataframe_binnedMetrics$M))
+}
+
 
 # create 11 segments as in https://www.putler.com/rfm-analysis/
 df_RFM_scores$segment <- sapply(seq_len(nrow(df_RFM_scores)), function(i){
