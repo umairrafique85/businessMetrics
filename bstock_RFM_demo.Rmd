@@ -1,0 +1,179 @@
+---
+title: "bstock_RFM_Analysis_demonstration"
+author: "Umair"
+date: "12/17/2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+library(tidyverse)
+library(gridExtra)
+library(plotly)
+load("aucWon_bidPlaced90.RData")
+```
+
+# Executive Summary
+- Event data for 'Bid Placed' and 'Auction Won' events for the past 90 days was used \n
+in the analysis
+- Users were segmented into five clusters for each of recency (last time event was \n
+registered from the user), and frequency (number of events registered from the user \n
+in the mentioned time-frame) by quintiles (20th percentiles).
+
+# Business Objective
+
+Our goal is to optimize our marketing efforts by identifying high-value clients \n
+and segmenting our users by their recency and frequency of transactions to \n
+employ appropriate marketing campaigns for each segment. We will initially explore \n
+the events 'Bid Placed' and 'Auction Won' for the last 90 days and segment our \n
+users by their R and F. Following will be some examples about the kind of summaries \n
+we can get from this analysis.
+
+## Summary
+- There are a total of 490 unique users in the data
+- The following users appear in the top 20 users by each of their Recency and Frequency \n
+scores by both 'Bid Placed' and 'Auction Won' events:
+
+```{r}
+intersect(head(df_aucWon_scores$email, 20), head(df_bidPlaced_scores$email, 20))
+```
+
+- We have 17 top frequency and recency users for the 'Auction Won' event.
+- We have 43 top frequency and recency users for the 'Bid Placed' event.
+
+## Details: Bid Placed
+
+#### Users in each recency and frequency bin
+
+```{r}
+df_tabBid1 <- as.data.frame(table(df_bidPlaced_binnedMetrics$frequencyBin))
+df_tabBid2 <- as.data.frame(table(df_bidPlaced_binnedMetrics$recencyBin))
+bar_bidPlcd1 <- ggplot(df_bidPlaced_binnedMetrics, aes(x = frequencyBin)) +
+                           geom_bar() + 
+  geom_text(data = df_tabBid1, aes(x = Var1, y = Freq, label = Freq), vjust = -0.5)
+bar_bidPlcd2 <- ggplot(df_bidPlaced_binnedMetrics, aes(x = recencyBin)) +
+                           geom_bar() + 
+  geom_text(data = df_tabBid2, aes(x = Var1, y = Freq, label = Freq), vjust = -0.5)
+grid.arrange(bar_bidPlcd1, bar_bidPlcd2, nrow = 1)
+```
+
+#### Distribution of frequency (how many times users triggered the event in \n
+the past 90 days) and recency (days since last event)
+
+```{r}
+df_bidPlaced_binnedMetrics %>% 
+  select(email, frequency, recency) %>% 
+  gather(key = metricBin, value = value, c(frequency, recency)) -> df_bidPlcd_plot
+ggplotly(ggplot(df_bidPlcd_plot, aes(x = metricBin, y = value)) + geom_boxplot())
+```
+
+#### Contingency table for each frequency and recency bins
+
+```{r}
+with(df_bidPlaced_binnedMetrics, table(recencyBin, frequencyBin))
+```
+
+#### As heatmap (red = low, white = high)
+```{r}
+with(df_bidPlaced_binnedMetrics, table(recencyBin, frequencyBin)) %>% 
+  data.frame() %>% spread(key = frequencyBin, value = Freq) -> df_heat1
+rownames(df_heat1) <- df_heat1$recencyBin
+mat_heat1 <- as.matrix(df_heat1[,-1])
+heatmap(mat_heat1, Rowv = NA, Colv = NA, scale = 'none')
+title(xlab = "Frequency", ylab = "Recency")
+```
+
+Each one of these segments differ from the others in their loyalty and frequency of \n
+transactions, so our marketing efforts can be customized for each. E.g users with the \n
+highest Recency and Frequency scores can be early adopters of new products, and could \n
+be rewarded, or upsold higher value products. Users with lesser scores can be potential \n
+loyalists, so they can be offered memberships, or loyalty programs, or recommended \n
+other products. Users with high Recency scores but low Frequency can be provided \n
+on-boarding support, or given early success. Others that had high frequency but low \n
+recency scores, meaning that it has been a while since they visited, but are high-value \n
+users, can be offered new products or exclusive offers to win them back.
+
+#### High frequency users that haven't placed bids since long
+```{r}
+subset(df_bidPlaced_binnedMetrics, frequencyBin=="[14,169]" & recencyBin=="[54,60]")$email
+```
+
+#### 20 of the most high-value users with highest frequencies, as well as recent transactions
+
+```{r}
+head(df_bidPlaced_scores, 20)
+```
+
+### Trend of bid placements in our time-frame
+
+hover over line for details
+
+```{r}
+df_bidPlaced_events %>% group_by(date = properties.time) %>% 
+  count() -> df_ts_bidPlaced
+ggplot(df_ts_bidPlaced, aes(x = date, y = n)) + geom_line() + geom_text(aes(label = n), vjust = -1)
+```
+
+## Auction Won
+
+#### Users in each recency and frequency bin
+
+```{r}
+df_tabWon1 <- as.data.frame(table(df_aucWon_binnedMetrics$frequencyBin))
+df_tabWon2 <- as.data.frame(table(df_aucWon_binnedMetrics$recencyBin))
+bar_aucWon1 <- ggplot(df_aucWon_binnedMetrics, aes(x = frequencyBin)) +
+                           geom_bar() + 
+  geom_text(data = df_tabWon1, aes(x = Var1, y = Freq, label = Freq), vjust = -0.5)
+bar_aucWon2 <- ggplot(df_aucWon_binnedMetrics, aes(x = recencyBin)) +
+                           geom_bar() + 
+  geom_text(data = df_tabWon2, aes(x = Var1, y = Freq, label = Freq), vjust = -0.5)
+grid.arrange(bar_aucWon1, bar_aucWon2, nrow = 1)
+```
+
+#### Distribution of frequency (how many times users triggered the event in \n
+the past 90 days) and recency (days since last event)
+
+```{r}
+df_aucWon_binnedMetrics %>% 
+  select(email, frequency, recency) %>% 
+  gather(key = metricBin, value = value, c(frequency, recency)) -> df_aucWon_plot
+ggplotly(ggplot(df_aucWon_plot, aes(x = metricBin, y = value)) + geom_boxplot())
+```
+
+#### Contingency table for users falling in each frequency and recency bins
+
+```{r}
+with(df_aucWon_binnedMetrics, table(recencyBin, frequencyBin))
+```
+
+#### As heatmap
+
+```{r}
+with(df_aucWon_binnedMetrics, table(recencyBin, frequencyBin)) %>% 
+  data.frame() %>% spread(key = frequencyBin, value = Freq) -> df_heat2
+rownames(df_heat2) <- df_heat2$recencyBin
+mat_heat2 <- as.matrix(df_heat2[,-1])
+heatmap(mat_heat2, Rowv = NA, Colv = NA, scale = 'none')
+title(xlab = "Frequency", ylab = "Recency")
+```
+
+#### Users that won recently but only once in the 90-day span
+
+```{r}
+subset(df_aucWon_binnedMetrics, frequencyBin=="[4,26]" & recencyBin=="[54,60]")$email
+```
+
+#### 20 of the most high-value users with highest frequencies, as well as recent transactions
+
+```{r}
+head(df_aucWon_scores, 20)
+```
+
+### Trend of auction wins in our time-frame
+
+```{r}
+df_aucWon_events %>% group_by(date = properties.time) %>% 
+  count() -> df_ts_aucWon
+ggplot(df_ts_aucWon, aes(x = date, y = n)) + geom_line() + geom_text(aes(label = n), vjust = -1)
+```
+
