@@ -19,19 +19,22 @@ save(df_sales_products, file = "df_sales_products")
 save(df_fromGA, file = "df_fromGA")
 # most of the orders missing from GA data, so not using that
 
-# make df_customers ####
+# make df for customer metrics, without products ####
 df_sales_invoices %>% 
   group_by(Email..Billing.) %>% 
   summarise(LTV = sum(Order.Subtotal.Amount), firstOrderID = min(Order.Number),
-            cohort_month = format(min(Order.Date), format = "%b-%y"),
+            month_acquired = format(min(Order.Date), format = "%b-%y"),
             avgOrderValue = mean(Order.Subtotal.Amount), 
             span_days = days(round(max(Order.Date) - min(Order.Date)))$day,
             span_months = ceiling(days(round(max(Order.Date) - min(Order.Date)))$day / 30),
             n = n()) %>% 
   mutate(daysBwRpt = span_days %/% n,
-         repeatCustomer = ifelse(n > 1, ifelse(n > 2, "above2orders", "2orders"),
-                                 "notRepeatCustomer"),
+         customerType = ifelse(n > 1, ifelse(n > 2, "above2orders", "2orders"),
+                               "notRepeatCustomer"),
          repeatRate = round(n/span_months, 1)) -> df_customers
+
+# make df for customer metrics, with products of first purchase ####
+
 
 # visualization: distribution of customers by type ####
 df_customers %>% group_by(customerType) %>% count() %>% 
@@ -97,6 +100,35 @@ lst_LTV <- lapply(unique(df_sales_invoices$month_acquired), function(month1st){
 })
 df_LTV <- do.call(rbind, lst_LTV)
 df_LTV <- ungroup(df_LTV)
+
+# For proper LTV calculations ####
+# add year
+df_sales_invoices$year <- year(df_sales_invoices$order_date)
+# number of years
+# average purchase value, 
+df_sales_invoices %>%
+  group_by(year) %>% 
+  summarise(total_gross = sum(order_subtotal_amount),
+            n_purchases = n(),
+            n_unique_customers = n_distinct(email_billing)) %>% 
+  mutate(avg_purchase_val = total_gross/n_purchases,
+         avg_purchase_freq = n_purchases/n_unique_customers) %>% 
+  mutate(avg_customer_val = avg_purchase_val * avg_purchase_freq)
+
+# reference:
+# 1. Calculate average purchase value: Calculate this number by dividing your 
+# company's total revenue in a time period (usually one year) by the number 
+# of purchases over the course of that same time period.
+# 2. Calculate average purchase frequency rate: Calculate this number by dividing 
+# the number of purchases over the course of the time period by the number of unique 
+# customers who made purchases during that time period.
+# 3. Calculate customer value: Calculate this number by multiplying the average purchase 
+# value by the average purchase frequency rate.
+# 4. Calculate average customer lifespan: Calculate this number by averaging 
+# out the number of years a customer continues purchasing from your company.
+# 5. Then, calculate LTV by multiplying customer value by the average customer 
+# lifespan. This will give you an estimate of how much revenue you can reasonably 
+# expect an average customer to generate for your company over the course of their relationship with you.
 
 # visualization: MoM Growth of LTV ####
 ggplot(df_LTV, aes(x = month, y = cumulativeLTV, color = month_acquired, group = month_acquired)) +
